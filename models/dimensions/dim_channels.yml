@@ -1,0 +1,92 @@
+version: 2
+
+models:
+  - name: dim_channels
+    description: "YouTube channel dimension. Type 1 SCD - overwrites on change."
+    columns:
+      - name: channel_key
+        description: "Surrogate key (autoincrement)"
+        tests:
+          - unique
+          - not_null
+      - name: channel_title
+        description: "Original channel title from YouTube API"
+        tests:
+          - not_null
+      - name: channel_title_normalized
+        description: "Lowercased, trimmed channel title for joining"
+        tests:
+          - unique
+          - not_null
+      - name: first_video_date
+        description: "Date of earliest video from this channel"
+        tests:
+          - not_null
+      - name: total_videos
+        description: "Total nutrition videos from this channel"
+        tests:
+          - not_null
+
+unit_tests:
+  - name: test_dim_channels_initial_run
+    description: "Full refresh - all channels loaded with correct aggregations"
+    model: dim_channels
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('stg_youtube_videos')
+        rows:
+          - video_id: "vid1"
+            channel_title_clean: "Runner's World"
+            published_date: "2020-03-01"
+          - video_id: "vid2"
+            channel_title_clean: "Runner's World"
+            published_date: "2022-06-15"
+          - video_id: "vid3"
+            channel_title_clean: "Runner's World"
+            published_date: "2024-01-10"
+          - video_id: "vid4"
+            channel_title_clean: "The Running Channel"
+            published_date: "2021-09-20"
+          - video_id: "vid5"
+            channel_title_clean: "The Running Channel"
+            published_date: "2023-11-05"
+    expect:
+      rows:
+        - channel_title: "Runner's World"
+          channel_title_normalized: "runner's world"
+          first_video_date: "2020-03-01"
+          total_videos: 3
+        - channel_title: "The Running Channel"
+          channel_title_normalized: "the running channel"
+          first_video_date: "2021-09-20"
+          total_videos: 2
+
+  - name: test_dim_channels_incremental_run
+    description: "Incremental run - only NEW channels added, existing channels skipped"
+    model: dim_channels
+    overrides:
+      macros:
+        is_incremental: true
+    given:
+      - input: ref('stg_youtube_videos')
+        rows:
+          - video_id: "vid6"
+            channel_title_clean: "Runner's World"   # Already exists - should be skipped
+            published_date: "2025-01-01"
+          - video_id: "vid7"
+            channel_title_clean: "Myprotein"         # New - should be inserted
+            published_date: "2025-02-01"
+      - input: this
+        rows:
+          - channel_title: "Runner's World"
+            channel_title_normalized: "runner's world"
+            first_video_date: "2020-03-01"
+            total_videos: 3
+    expect:
+      rows:
+        - channel_title: "Myprotein"
+          channel_title_normalized: "myprotein"
+          first_video_date: "2025-02-01"
+          total_videos: 1

@@ -1,0 +1,4 @@
+dbt-snowflake==1.8.4
+snowflake-connector-python
+google-api-python-client
+cryptography

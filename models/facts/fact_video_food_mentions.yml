@@ -1,0 +1,170 @@
+version: 2
+
+models:
+  - name: fact_video_food_mentions
+    description: >
+      Fact table: One row per video-food mention.
+      Grain = video_id + food_key.
+      Clustered by published_at for time-series query performance.
+      Idempotent: incremental model filters existing video_ids.
+    columns:
+      - name: mention_key
+        description: "Composite PK = video_id || '_' || food_key"
+        tests:
+          - unique
+          - not_null
+      - name: video_id
+        description: "YouTube video identifier"
+        tests:
+          - not_null
+      - name: date_key
+        description: "FK to dim_date.date_key (YYYYMMDD format)"
+        tests:
+          - not_null
+          - relationships:
+              to: source('raw', 'dim_date')
+              field: date_key
+      - name: food_key
+        description: "FK to dim_foods.food_key"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_foods')
+              field: food_key
+      - name: channel_key
+        description: "FK to dim_channels.channel_key"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_channels')
+              field: channel_key
+      - name: video_title
+        description: "Title of the YouTube video"
+        tests:
+          - not_null
+      - name: published_at
+        description: "Timestamp when video was published"
+        tests:
+          - not_null
+      - name: mention_count
+        description: "Number of times food is mentioned (default 1)"
+        tests:
+          - not_null
+
+unit_tests:
+  - name: test_fact_initial_run
+    description: "Full refresh - one row per video-food pair with correct keys"
+    model: fact_video_food_mentions
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_food_mentions')
+        rows:
+          - video_id: "vid1"
+            food_name: "protein"
+            title_clean: "Marathon Nutrition Guide"
+            published_date: "2024-01-15"
+          - video_id: "vid1"
+            food_name: "banana"
+            title_clean: "Marathon Nutrition Guide"
+            published_date: "2024-01-15"
+          - video_id: "vid2"
+            food_name: "energy gel"
+            title_clean: "Race Day Fueling"
+            published_date: "2024-03-20"
+      - input: ref('dim_foods')
+        rows:
+          - food_key: 1
+            food_name_normalized: "protein"
+          - food_key: 2
+            food_name_normalized: "banana"
+          - food_key: 3
+            food_name_normalized: "energy gel"
+      - input: ref('dim_channels')
+        rows:
+          - channel_key: 10
+            channel_title_normalized: "runner's world"
+      - input: ref('stg_youtube_videos')
+        rows:
+          - video_id: "vid1"
+            channel_title_clean: "Runner's World"
+          - video_id: "vid2"
+            channel_title_clean: "Runner's World"
+      - input: source('raw', 'dim_date')
+        rows:
+          - date_key: 20240115
+            full_date: "2024-01-15"
+          - date_key: 20240320
+            full_date: "2024-03-20"
+    expect:
+      rows:
+        - mention_key: "vid1_1"
+          video_id: "vid1"
+          food_key: 1
+          channel_key: 10
+          date_key: 20240115
+          mention_count: 1
+        - mention_key: "vid1_2"
+          video_id: "vid1"
+          food_key: 2
+          channel_key: 10
+          date_key: 20240115
+          mention_count: 1
+        - mention_key: "vid2_3"
+          video_id: "vid2"
+          food_key: 3
+          channel_key: 10
+          date_key: 20240320
+          mention_count: 1
+
+  - name: test_fact_incremental_run
+    description: "Incremental run - only NEW videos processed, existing videos skipped"
+    model: fact_video_food_mentions
+    overrides:
+      macros:
+        is_incremental: true
+    given:
+      - input: ref('int_food_mentions')
+        rows:
+          - video_id: "vid1"        # Already in fact table - should be skipped
+            food_name: "protein"
+            title_clean: "Old Video"
+            published_date: "2024-01-15"
+          - video_id: "vid3"        # New video - should be inserted
+            food_name: "banana"
+            title_clean: "New Video"
+            published_date: "2024-05-01"
+      - input: this
+        rows:
+          - mention_key: "vid1_1"
+            video_id: "vid1"
+      - input: ref('dim_foods')
+        rows:
+          - food_key: 1
+            food_name_normalized: "protein"
+          - food_key: 2
+            food_name_normalized: "banana"
+      - input: ref('dim_channels')
+        rows:
+          - channel_key: 10
+            channel_title_normalized: "runner's world"
+      - input: ref('stg_youtube_videos')
+        rows:
+          - video_id: "vid1"
+            channel_title_clean: "Runner's World"
+          - video_id: "vid3"
+            channel_title_clean: "Runner's World"
+      - input: source('raw', 'dim_date')
+        rows:
+          - date_key: 20240115
+            full_date: "2024-01-15"
+          - date_key: 20240501
+            full_date: "2024-05-01"
+    expect:
+      rows:
+        - mention_key: "vid3_2"
+          video_id: "vid3"
+          food_key: 2
+          date_key: 20240501
+          mention_count: 1

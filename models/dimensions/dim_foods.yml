@@ -1,0 +1,241 @@
+version: 2
+
+models:
+  - name: dim_foods
+    description: "Food dimension enriched with USDA nutritional data. Type 1 SCD."
+    columns:
+      - name: food_key
+        description: "Surrogate key (autoincrement)"
+        tests:
+          - unique
+          - not_null
+      - name: food_name
+        description: "Original food name as extracted from videos"
+        tests:
+          - not_null
+      - name: food_name_normalized
+        description: "Lowercased, trimmed food name for joining"
+        tests:
+          - unique
+          - not_null
+      - name: is_macronutrient
+        description: "True if food is a macronutrient category (protein, carbs, fat)"
+        tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+      - name: is_sports_nutrition
+        description: "True if food is a sports nutrition product"
+        tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+      - name: is_whole_food
+        description: "True if food is a whole food item"
+        tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+      - name: protein_g
+        description: "Protein per 100g from USDA (0 if not enriched)"
+        tests:
+          - not_null
+      - name: carbs_g
+        description: "Carbohydrates per 100g from USDA (0 if not enriched)"
+        tests:
+          - not_null
+      - name: calories
+        description: "Calories per 100g from USDA (0 if not enriched)"
+        tests:
+          - not_null
+
+unit_tests:
+  - name: test_dim_foods_initial_run
+    description: "Full refresh - all foods loaded with correct classifications and USDA enrichment"
+    model: dim_foods
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_food_mentions')
+        rows:
+          - video_id: "vid1"
+            title_clean: "Marathon Nutrition"
+            published_date: "2024-01-15"
+            year: 2024
+            month: 1
+            food_name: "protein"
+          - video_id: "vid2"
+            title_clean: "Carb Loading Guide"
+            published_date: "2024-02-01"
+            year: 2024
+            month: 2
+            food_name: "carbohydrates"
+          - video_id: "vid3"
+            title_clean: "Race Day Fuel"
+            published_date: "2024-03-01"
+            year: 2024
+            month: 3
+            food_name: "protein bar"
+          - video_id: "vid4"
+            title_clean: "Energy Gels Review"
+            published_date: "2024-04-01"
+            year: 2024
+            month: 4
+            food_name: "energy gel"
+          - video_id: "vid5"
+            title_clean: "Best Runner Foods"
+            published_date: "2024-05-01"
+            year: 2024
+            month: 5
+            food_name: "banana"
+          - video_id: "vid6"
+            title_clean: "Protein Sources"
+            published_date: "2024-06-01"
+            year: 2024
+            month: 6
+            food_name: "egg"
+      - input: source('raw', 'raw_usda_foods')
+        rows:
+          - food_name: "banana"
+            fdc_id: 1234
+            protein_g: 1.09
+            carbs_g: 22.84
+            fat_g: 0.33
+            calories: 89.0
+          - food_name: "egg"
+            fdc_id: 5678
+            protein_g: 12.6
+            carbs_g: 0.7
+            fat_g: 9.5
+            calories: 143.0
+    expect:
+      rows:
+        - food_name: "protein"
+          food_name_normalized: "protein"
+          is_macronutrient: true
+          is_sports_nutrition: false
+          is_whole_food: false
+          usda_fdc_id: null
+          protein_g: 0
+          carbs_g: 0
+          fat_g: 0
+          calories: 0
+        - food_name: "carbohydrates"
+          food_name_normalized: "carbohydrates"
+          is_macronutrient: true
+          is_sports_nutrition: false
+          is_whole_food: false
+          usda_fdc_id: null
+          protein_g: 0
+          carbs_g: 0
+          fat_g: 0
+          calories: 0
+        - food_name: "protein bar"
+          food_name_normalized: "protein bar"
+          is_macronutrient: false
+          is_sports_nutrition: true
+          is_whole_food: false
+          usda_fdc_id: null
+          protein_g: 0
+          carbs_g: 0
+          fat_g: 0
+          calories: 0
+        - food_name: "energy gel"
+          food_name_normalized: "energy gel"
+          is_macronutrient: false
+          is_sports_nutrition: true
+          is_whole_food: false
+          usda_fdc_id: null
+          protein_g: 0
+          carbs_g: 0
+          fat_g: 0
+          calories: 0
+        - food_name: "banana"
+          food_name_normalized: "banana"
+          is_macronutrient: false
+          is_sports_nutrition: false
+          is_whole_food: true
+          usda_fdc_id: 1234
+          protein_g: 1.09
+          carbs_g: 22.84
+          fat_g: 0.33
+          calories: 89.0
+        - food_name: "egg"
+          food_name_normalized: "egg"
+          is_macronutrient: false
+          is_sports_nutrition: false
+          is_whole_food: true
+          usda_fdc_id: 5678
+          protein_g: 12.6
+          carbs_g: 0.7
+          fat_g: 9.5
+          calories: 143.0
+
+  - name: test_dim_foods_incremental_run
+    description: "Incremental run - only NEW foods added, existing foods skipped"
+    model: dim_foods
+    overrides:
+      macros:
+        is_incremental: true
+    given:
+      - input: ref('int_food_mentions')
+        rows:
+          - video_id: "vid1"
+            title_clean: "Best Runner Foods"
+            published_date: "2024-01-15"
+            year: 2024
+            month: 1
+            food_name: "banana"     # Already exists - should be skipped
+          - video_id: "vid2"
+            title_clean: "Plant Based Running"
+            published_date: "2024-02-01"
+            year: 2024
+            month: 2
+            food_name: "quinoa"     # New - should be inserted
+          - video_id: "vid3"
+            title_clean: "Omega 3 for Runners"
+            published_date: "2024-03-01"
+            year: 2024
+            month: 3
+            food_name: "salmon"     # New - should be inserted
+      - input: this
+        rows:
+          - food_name: "banana"
+            food_name_normalized: "banana"
+      - input: source('raw', 'raw_usda_foods')
+        rows:
+          - food_name: "quinoa"
+            fdc_id: 9999
+            protein_g: 4.4
+            carbs_g: 21.3
+            fat_g: 1.9
+            calories: 120.0
+          - food_name: "salmon"
+            fdc_id: 8888
+            protein_g: 20.0
+            carbs_g: 0.0
+            fat_g: 13.0
+            calories: 208.0
+    expect:
+      rows:
+        - food_name: "quinoa"
+          food_name_normalized: "quinoa"
+          is_macronutrient: false
+          is_sports_nutrition: false
+          is_whole_food: false
+          usda_fdc_id: 9999
+          protein_g: 4.4
+          carbs_g: 21.3
+          fat_g: 1.9
+          calories: 120.0
+        - food_name: "salmon"
+          food_name_normalized: "salmon"
+          is_macronutrient: false
+          is_sports_nutrition: false
+          is_whole_food: false
+          usda_fdc_id: 8888
+          protein_g: 20.0
+          carbs_g: 0.0
+          fat_g: 13.0
+          calories: 208.0

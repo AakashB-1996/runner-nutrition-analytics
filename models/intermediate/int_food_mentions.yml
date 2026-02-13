@@ -1,0 +1,80 @@
+version: 2
+
+models:
+  - name: int_food_mentions
+    description: "Unnested food mentions from YouTube videos. One row per video-food pair."
+    columns:
+      - name: video_id
+        description: "YouTube video identifier"
+        tests:
+          - not_null
+      
+      - name: food_name
+        description: "Individual food name extracted from video"
+        tests:
+          - not_null
+      
+      - name: title_clean
+        description: "Cleaned video title"
+        tests:
+          - not_null
+      
+      - name: published_date
+        description: "Date the video was published"
+        tests:
+          - not_null
+      
+      - name: year
+        description: "Year of publication (2020-2026)"
+        tests:
+          - not_null
+          - accepted_values:
+              values: [2020, 2021, 2022, 2023, 2024, 2025, 2026]
+      
+      - name: month
+        description: "Month of publication (1-12)"
+        tests:
+          - not_null
+          - accepted_values:
+              values: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+
+unit_tests:
+  - name: test_food_mentions_unnest
+    description: "Test that food array is properly unnested"
+    model: int_food_mentions
+    given:
+      - input: ref('stg_youtube_videos')
+        rows:
+          - video_id: "test123"
+            title_clean: "Test Video"
+            published_date: "2024-01-15"
+            year: 2024
+            month: 1
+            extracted_foods: ["protein", "banana", "oatmeal"]
+    expect:
+      rows:
+        - video_id: "test123"
+          food_name: "protein"
+        - video_id: "test123"
+          food_name: "banana"
+        - video_id: "test123"
+          food_name: "oatmeal"
+
+  - name: test_empty_food_strings_removed
+    description: "Test that empty strings are filtered out"
+    model: int_food_mentions
+    given:
+      - input: ref('stg_youtube_videos')
+        rows:
+          - video_id: "test456"
+            title_clean: "Test"
+            published_date: "2024-01-15"
+            year: 2024
+            month: 1
+            extracted_foods: ["protein", "", "banana"]
+    expect:
+      rows:
+        - video_id: "test456"
+          food_name: "protein"
+        - video_id: "test456"
+          food_name: "banana"

@@ -1,0 +1,35 @@
+version: 2
+
+sources:
+  - name: raw
+    database: DATAEXPERT_STUDENT
+    schema: BOLISETTYAAKASH693240
+    tables:
+      - name: raw_youtube_videos
+        description: "Raw YouTube video data from 2020-2026"
+        columns:
+          - name: video_id
+            description: "Unique YouTube video identifier"
+            tests:
+              - unique
+              - not_null
+          - name: published_at
+            description: "When the video was published"
+            tests:
+              - not_null
+      
+      - name: raw_usda_foods
+        description: "USDA nutrition data for foods"
+        columns:
+          - name: fdc_id
+            description: "USDA FoodData Central ID"
+            tests:
+              - unique
+              - not_null
+      - name: dim_date
+        description: "Pre-populated date dimension 2020-2026"
+        columns:
+          - name: date_key
+            tests:
+              - unique
+              - not_null

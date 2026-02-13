@@ -1,0 +1,22 @@
+# dbt
+target/
+dbt_packages/
+logs/
+*.log
+
+# Airflow
+airflow/logs/
+airflow/plugins/
+
+# Python
+__pycache__/
+*.pyc
+.env
+venv/
+
+# Sensitive
+*.pem
+profiles.yml
+
+# OS
+.DS_Store

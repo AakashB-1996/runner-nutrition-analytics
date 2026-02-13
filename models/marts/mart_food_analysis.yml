@@ -1,0 +1,61 @@
+version: 2
+
+models:
+  - name: mart_food_analysis
+    description: "Analytics mart showing food mentions with USDA nutritional data"
+    columns:
+      - name: food_name
+        description: "Name of the food item"
+        tests:
+          - not_null
+          - unique
+      
+      - name: video_mention_count
+        description: "Number of unique videos mentioning this food"
+        tests:
+          - not_null
+      
+      - name: total_mentions
+        description: "Total times this food was mentioned (can be multiple per video)"
+        tests:
+          - not_null
+      
+      - name: first_mentioned
+        description: "Earliest date this food appeared in a video"
+        tests:
+          - not_null
+      
+      - name: last_mentioned
+        description: "Most recent date this food appeared"
+        tests:
+          - not_null
+      
+      - name: usda_protein_g
+        description: "Protein content per 100g from USDA database"
+      
+      - name: usda_carbs_g
+        description: "Carbohydrate content per 100g from USDA"
+      
+      - name: usda_fat_g
+        description: "Fat content per 100g from USDA"
+      
+      - name: usda_calories
+        description: "Calories per 100g from USDA"
+      
+      - name: mention_rank
+        description: "Rank by video mention count (1 = most mentioned)"
+        tests:
+          - not_null
+          - unique
+
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "video_mention_count <= total_mentions"
+          config:
+            severity: error
+      
+      - dbt_utils.expression_is_true:
+          expression: "first_mentioned <= last_mentioned"
+          config:
+            severity: error
+
