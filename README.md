@@ -18,7 +18,7 @@ Runners consume nutrition advice from YouTube influencers, but this content is r
 
 ### Key Insights
 - Runners mention **"protein"** 123x but it's just a category - not a real food
-- **Protein bars** are marketed as protein food but contain more carbs (38.4g) than protein (30.3g)
+- **Protein bars** are marketed as protein food but more often than not it contains more carbs (38.4g) than protein (30.3g)
 - **Turkey** has 56% protein calories but is mentioned only once
 - **Energy gels** are the fastest-growing nutrition topic (2020-2026)
 
